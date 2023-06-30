@@ -13,7 +13,6 @@ try:
     import Vector35_sigkit
 except ModuleNotFoundError:
     try:
-        print("Vector35_sigkit NOT found")
         import sigkit
     except ModuleNotFoundError:
         print(sys.path)
@@ -54,7 +53,10 @@ def parse_lib(dylib):
 def main():
     pool = mp.Pool(mp.cpu_count())
     libs = parse_directory("./goat")
-    print(len(libs))
+    if len(libs) < 1:
+        print("No libs found?!?")
+        sys.exit(-2)
+
     for result in pool.map(parse_lib, libs):
         print(result)
 
