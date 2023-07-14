@@ -50,38 +50,40 @@ def parse_directory(dname, postfix) -> list:
     return results
 
 
-def check_output_dir(odir) -> None:
+def check_output_dir(odir) -> bool:
     if os.path.exists(odir):
         print(f"{odir} already exists! Aborting!")
-        sys.exit(-4)
+        return False
     try:
         os.mkdir(odir)
     except PermissionError as e:
         print(e)
-        sys.exit(-5)
+        return False
     except FileNotFoundError as err:
         print(err)
-        sys.exit(-6)
+        return False
+    return True
 
-def check_libtype(ltype) -> None:
-    if ltype.endswith(".a") or ltype.endswith("dylib")
-        return
+def check_libtype(ltype) -> bool:
+    if ltype.lower().endswith(".a"):
+        return True
+    elif ltype.lower().endswith("dylib"):
+        return True
     else:
         print(f"{ltype}: unsupported library type! Aborting!")
-        sys.exit(-10)
+        return False
 
-
-def check_scan_dir(sdir) -> None:
+def check_scan_dir(sdir) -> bool:
     if sdir is None:
-        print(f"{sdir} is None? Aborting!")
-        sys.exit(-7)
+        print(f"sdir is None? Aborting!")
+        return False
     if not os.path.exists(sdir):
         print(f"{sdir} does not exist! Aborting!")
-        sys.exit(-8)
+        return False
     if not os.path.isdir(sdir):
         print(f"{sdir} is not a directory! Aborting!")
-        sys.exit(-9)
-
+        return False
+    return True
 
 def parse_lib(dylib) -> list:
     func_info = {}
@@ -103,16 +105,18 @@ def parse_lib(dylib) -> list:
 def main() -> int:
     flock = mp.Lock()
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s",  "--scan", help="directory to recursively scan for libraries")
-    parser.add_argument("-o", "--output", help="output directory - must NOT exist", default="./lol")
+    parser.add_argument("-d",  "--directory", help="directory to recursively scan for libraries")
+    parser.add_argument("-o", "--output", help="output directory - must NOT exist",default="./lol")
     parser.add_argument("-t","--libtype", help="type of libraries to parse - valid values .a|.dylib",default=".dylib")
+    parser.add_argument("-s","--settings",help="settings file",default="apple.txt")
     args = parser.parse_args()
     outdir = args.output
     scandir = args.scan
     libtype = args.libtype
-    check_scan_dir(scandir)
-    check_output_dir(outdir)
-    check_libtype(libtype)
+    setfile = args.settings
+    # TODO: add check for setfile
+    if not check_scan_dir(scandir) or not check_output_dir(outdir) or check_libtype(libtype):
+        sys.exit(-1)
     libs = []
     pool = mp.Pool(mp.cpu_count())
     for path, directories, files in os.walk(scandir):
@@ -122,11 +126,12 @@ def main() -> int:
             for lib in tmp:
                 libs.append(lib)
     if len(libs) < 1:
-        print("No libs found?!?")
+        print("No libs found?!? - Aborting")
         sys.exit(-2)
+    # let's dedup just-in-case :-)
     libs = set(libs)
-    for sig in pool.map(parse_lib, libs):
-        somewhat_safe_serialize(sig, os.path.join(os.path.abspath(outdir),sig['name']+".sig"), flock)
+    #for sig in pool.map(parse_lib, libs):
+    #    somewhat_safe_serialize(sig, os.path.join(os.path.abspath(outdir),sig['name']+".sig"), flock)
     return 0
 
 if __name__ == "__main__":
