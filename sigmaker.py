@@ -101,21 +101,30 @@ def parse_lib(dylib) -> list:
             results.append(func_info)
     return results
 
+def process_ar(arfile) -> list:
+    return []
 
 def main() -> int:
     flock = mp.Lock()
+    settings = []
     parser = argparse.ArgumentParser()
     parser.add_argument("-d",  "--directory", help="directory to recursively scan for libraries")
     parser.add_argument("-o", "--output", help="output directory - must NOT exist",default="./lol")
     parser.add_argument("-t","--libtype", help="type of libraries to parse - valid values .a|.dylib",default=".dylib")
-    parser.add_argument("-s","--settings",help="settings file",default="apple.txt")
+    parser.add_argument("-s","--settings",help="settings file",nargs='?', type=argparse.FileType('r'), const=None)
     args = parser.parse_args()
     outdir = args.output
-    scandir = args.scan
+    scandir = args.directory
     libtype = args.libtype
     setfile = args.settings
+    if setfile is not None:
+        for line in setfile.readlines():
+            line = line.strip()
+            #print(line)
+            settings.append(line)
+    print(settings)
     # TODO: add check for setfile
-    if not check_scan_dir(scandir) or not check_output_dir(outdir) or check_libtype(libtype):
+    if not check_scan_dir(scandir) or not check_output_dir(outdir) or not check_libtype(libtype):
         sys.exit(-1)
     libs = []
     pool = mp.Pool(mp.cpu_count())
@@ -124,14 +133,17 @@ def main() -> int:
         tmp = parse_directory(fpath, libtype)
         if tmp != []:
             for lib in tmp:
-                libs.append(lib)
+                if any(ext in lib for ext in settings) or settings == []:
+                    libs.append(lib)
     if len(libs) < 1:
         print("No libs found?!? - Aborting")
         sys.exit(-2)
     # let's dedup just-in-case :-)
     libs = set(libs)
-    #for sig in pool.map(parse_lib, libs):
-    #    somewhat_safe_serialize(sig, os.path.join(os.path.abspath(outdir),sig['name']+".sig"), flock)
+    print(len(libs))
+    print(libs)
+    for sig in pool.map(parse_lib, libs):
+        somewhat_safe_serialize(sig, os.path.join(os.path.abspath(outdir),sig['name']+".sig"), flock)
     return 0
 
 if __name__ == "__main__":
